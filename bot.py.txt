@@ -4,7 +4,7 @@ from telebot import types
 from flask import Flask
 from threading import Thread
 import os
-TOKEN = "7913501710:AAH-m7_GByXf7k4lKx25H3vV9y3K2x7H-88"
+TOKEN = "8790468450:AAEaceqPyeomhS_BHP0BLg-Nica4ekr8K4o"
 bot = telebot.TeleBot(TOKEN)
 app = Flask('')
 @app.route('/')
@@ -28,7 +28,17 @@ def init_db():
 @bot.message_handler(commands=['start'])
 def start(message):
     bot.send_message(message.chat.id, "✅ Bot 24/7 rejimda ishlamoqda!\nKitob qo'shishingiz yoki qidirishingiz mumkin.")
-
+if __name__ == "__main__":
+    init_db()
+    keep_alive()
+    print("Bot muvaffaqiyatli yoqildi!")
+    while True:
+        try:
+            bot.infinity_polling(timeout=10, long_polling_timeout=5)
+        except Exception as e:
+            print(f"Xatolik yuz berdi: {e}")
+            import time
+            time.sleep(5) # 5 soniya kutib, qayta urinadi
 if __name__ == "__main__":
     init_db()
     keep_alive() # Render o'chirib qo'ymasligi uchun veb-serverni yoqish
