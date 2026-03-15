@@ -6,7 +6,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread
 
 TOKEN = "8790468450:AAEaceqPyeomhS_BHP0BLg-Nica4ekr8K4o"
-ADMIN_ID = 5753001435
+ADMIN_ID = 5753001435 # <--- O'Z ID RAQAMINGIZNI YOZING
 
 bot = telebot.TeleBot(TOKEN)
 try:
@@ -30,6 +30,8 @@ def init_db():
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS books 
                       (id INTEGER PRIMARY KEY, title TEXT, author TEXT, genre TEXT, file_id TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users 
+                      (id INTEGER PRIMARY KEY)''')
     conn.commit()
     conn.close()
 
@@ -52,15 +54,50 @@ def get_main_menu():
 
 @bot.message_handler(commands=['start'])
 def start(message):
+    user_id = message.from_user.id
+    first_name = message.from_user.first_name
+    username = f"@{message.from_user.username}" if message.from_user.username else "Mavjud emas"
+    
+    conn = sqlite3.connect('kutubxona.db', check_same_thread=False)
+    cursor = conn.cursor()
+    
+    # Yangi foydalanuvchi kirganini tekshirish
+    cursor.execute("SELECT id FROM users WHERE id=?", (user_id,))
+    is_new = cursor.fetchone() is None
+    
+    if is_new:
+        cursor.execute("INSERT INTO users (id) VALUES (?)", (user_id,))
+        conn.commit()
+        # ADMINGA XABAR YUBORISH
+        if user_id != ADMIN_ID:
+            admin_text = f"👤 **Yangi foydalanuvchi!**\n\nIsmi: {first_name}\nUsername: {username}\nID: `{user_id}`"
+            bot.send_message(ADMIN_ID, admin_text, parse_mode="Markdown")
+            
+    conn.close()
+
     reply_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     reply_markup.add(types.KeyboardButton("📚 Kitoblar katalogi"))
     
-    if message.from_user.id == ADMIN_ID:
+    if user_id == ADMIN_ID:
         reply_markup.add(types.KeyboardButton("➕ Yangi kitob qo'shish (Admin)"))
     
     bot.send_message(message.chat.id, 
                      "📚 **Xush kelibsiz!**\n\nPastdagi janrlardan birini tanlang yoki yangi kitob qo'shing:", 
                      reply_markup=reply_markup, parse_mode="Markdown")
+
+@bot.message_handler(commands=['stat'])
+def get_stats(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    conn = sqlite3.connect('kutubxona.db', check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users")
+    users_count = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM books")
+    books_count = cursor.fetchone()[0]
+    conn.close()
+    
+    bot.send_message(message.chat.id, f"📊 **Statistika:**\n\n👥 Foydalanuvchilar: **{users_count}** ta\n📚 Kitoblar: **{books_count}** ta", parse_mode="Markdown")
 
 @bot.message_handler(func=lambda message: message.text == "📚 Kitoblar katalogi")
 def show_catalog(message):
