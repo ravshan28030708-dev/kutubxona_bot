@@ -1,38 +1,55 @@
 import telebot
 import sqlite3
 from telebot import types
+import os
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from threading import Thread
 
-# 1. BOT TOKENINGIZ
-TOKEN = "8790468450:AAEaceqPyeomhS_BHP0BLg-Nica4ekr8K4o" 
+# 1. SOZLAMALAR
+TOKEN = "8790468450:AAEaceqPyeomhS_BHP0BLg-Nica4ekr8K4o"
+ADMIN_ID = 5122754674  # <--- BU YERGA O'Z ID RAQAMINGIZNI YOZING
 bot = telebot.TeleBot(TOKEN)
 
-# Ma'lumotlar bazasini yaratish va sozlash
+# --- RENDERDA 24/7 ISHLASHI UCHUN SODDA SERVER ---
+class SimpleHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot ishlayapti...")
+
+def run_server():
+    port = int(os.environ.get("PORT", 8080))
+    httpd = HTTPServer(('0.0.0.0', port), SimpleHandler)
+    httpd.serve_forever()
+
+# --- BAZA SOZLAMALARI ---
 def init_db():
     conn = sqlite3.connect('kutubxona.db', check_same_thread=False)
     cursor = conn.cursor()
-    # file_id ustuni PDF fayllarni Telegram serverida saqlash uchun kerak
     cursor.execute('''CREATE TABLE IF NOT EXISTS books 
                       (id INTEGER PRIMARY KEY, title TEXT, author TEXT, genre TEXT, file_id TEXT)''')
     conn.commit()
     conn.close()
 
-# Siz so'ragan janrlar ro'yxati
 JANRLAR = ["Roman", "Ishqiy roman", "Badiiy", "Ertak", "Hikoya"]
-temp_data = {} # Kitob qo'shish jarayonini eslab qolish uchun
+temp_data = {}
 
+# --- START BUYRUG'I ---
 @bot.message_handler(commands=['start'])
 def start(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    # Janr tugmalarini qo'shish
     buttons = [types.KeyboardButton(j) for j in JANRLAR]
     markup.add(*buttons)
-    markup.add(types.KeyboardButton("➕ Yangi kitob qo'shish (Admin)"))
+    
+    # FAQAT ADMINGA KITOB QO'SHISH TUGMASI KO'RINADI
+    if message.from_user.id == ADMIN_ID:
+        markup.add(types.KeyboardButton("➕ Yangi kitob qo'shish (Admin)"))
     
     bot.send_message(message.chat.id, 
-                     "📚 **Xush kelibsiz!**\n\nPastdagi janrlardan birini tanlang yoki yangi kitob qo'shing:", 
+                     "📚 **Xush kelibsiz!**\n\nPastdagi janrlardan birini tanlang:", 
                      reply_markup=markup, parse_mode="Markdown")
 
-# Foydalanuvchi janrni tanlaganda kitoblarni ko'rsatish
+# --- JANR TANLANGANDA KITOB CHIQARISH ---
 @bot.message_handler(func=lambda message: message.text in JANRLAR)
 def show_books(message):
     conn = sqlite3.connect('kutubxona.db', check_same_thread=False)
@@ -42,20 +59,20 @@ def show_books(message):
     conn.close()
 
     if books:
-        bot.send_message(message.chat.id, f"📂 **{message.text}** bo'limidagi kitoblar:")
+        bot.send_message(message.chat.id, f"📂 **{message.text}** janridagi kitoblar:")
         for title, author, f_id in books:
             caption = f"📖 **Nomi:** {title}\n✍️ **Muallif:** {author}"
-            if f_id:
-                bot.send_document(message.chat.id, f_id, caption=caption, parse_mode="Markdown")
-            else:
-                bot.send_message(message.chat.id, f"{caption}\n⚠️ _Fayl yuklanmagan_", parse_mode="Markdown")
+            bot.send_document(message.chat.id, f_id, caption=caption, parse_mode="Markdown")
     else:
-        bot.send_message(message.chat.id, f"❌ Kechirasiz, **{message.text}** janrida hali kitoblar yo'q.", parse_mode="Markdown")
+        bot.send_message(message.chat.id, f"❌ Kechirasiz, **{message.text}** janrida kitob yo'q.")
 
-# --- KITOB QO'SHISH JARAYONI ---
-
+# --- KITOB QO'SHISH (FAQAT ADMIN UCHUN) ---
 @bot.message_handler(func=lambda message: message.text == "➕ Yangi kitob qo'shish (Admin)")
 def add_step1(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.send_message(message.chat.id, "⛔️ Kechirasiz, kitob qo'shish huquqi faqat Adminga berilgan!")
+        return
+    
     temp_data[message.chat.id] = {}
     msg = bot.send_message(message.chat.id, "1️⃣ Kitob **nomini** kiriting:")
     bot.register_next_step_handler(msg, add_step2)
@@ -77,29 +94,26 @@ def add_step4(message):
         temp_data[message.chat.id]['genre'] = message.text
         bot.send_message(message.chat.id, "4️⃣ Endi kitobning **PDF** faylini yuboring:")
     else:
-        bot.send_message(message.chat.id, "❌ Noto'g'ri janr. Iltimos, tugmalardan foydalaning.")
+        bot.send_message(message.chat.id, "❌ Xato janr!")
 
 @bot.message_handler(content_types=['document'])
 def handle_pdf(message):
     chat_id = message.chat.id
-    if chat_id in temp_data and 'genre' in temp_data[chat_id]:
+    if chat_id in temp_data and chat_id == ADMIN_ID:
         data = temp_data[chat_id]
-        file_id = message.document.file_id # Faylning Telegramdagi ID-si
+        f_id = message.document.file_id
         
-        # Bazaga saqlash
         conn = sqlite3.connect('kutubxona.db', check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute("INSERT INTO books (title, author, genre, file_id) VALUES (?, ?, ?, ?)",
-                       (data['title'], data['author'], data['genre'], file_id))
+                       (data['title'], data['author'], data['genre'], f_id))
         conn.commit()
         conn.close()
         
         del temp_data[chat_id]
-        bot.send_message(chat_id, "✅ **Tayyor! Kitob bazaga muvaffaqiyatli qo'shildi.**", parse_mode="Markdown")
-    else:
-        bot.send_message(chat_id, "ℹ️ Kitob qo'shish uchun avval tugmani bosing.")
+        bot.send_message(chat_id, "✅ Kitob muvaffaqiyatli saqlandi!")
 
 if __name__ == "__main__":
     init_db()
-    print("Bot ishga tushdi...")
+    Thread(target=run_server, daemon=True).start()
     bot.infinity_polling()
