@@ -1,23 +1,22 @@
 import telebot
 import sqlite3
 from telebot import types
-import http.server
-import socketserver
+from flask import Flask
 from threading import Thread
-
-# 1. TOKENINGIZ
+import os
 TOKEN = "7913501710:AAH-m7_GByXf7k4lKx25H3vV9y3K2x7H-88"
 bot = telebot.TeleBot(TOKEN)
+app = Flask('')
+@app.route('/')
+def home():
+    return "Bot is alive!"
+def run():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
 
-# Render uchun kichik veb-server (Botni uyg'oq tutish uchun)
 def keep_alive():
-    def run_server():
-        PORT = 8080
-        Handler = http.server.SimpleHTTPRequestHandler
-        with socketserver.TCPServer(("", PORT), Handler) as httpd:
-            httpd.serve_forever()
-    Thread(target=run_server, daemon=True).start()
-
+    t = Thread(target=run)
+    t.start()
 def init_db():
     conn = sqlite3.connect('kutubxona.db', check_same_thread=False)
     cursor = conn.cursor()
@@ -28,10 +27,10 @@ def init_db():
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, "Bot 24/7 rejimda ishlamoqda! Kitob qo'shishingiz yoki qidirishingiz mumkin.")
+    bot.send_message(message.chat.id, "✅ Bot 24/7 rejimda ishlamoqda!\nKitob qo'shishingiz yoki qidirishingiz mumkin.")
 
 if __name__ == "__main__":
     init_db()
-    keep_alive() # Mana shu funksiya Render-ni aldab, botni o'chirtirmaydi
+    keep_alive() # Render o'chirib qo'ymasligi uchun veb-serverni yoqish
     print("Bot yoqildi...")
     bot.infinity_polling()
