@@ -7,7 +7,7 @@ from threading import Thread
 
 # 1. SOZLAMALAR
 TOKEN = "8790468450:AAEaceqPyeomhS_BHP0BLg-Nica4ekr8K4o"
-ADMIN_ID = 5753001435  # <--- BU YERGA @userinfobot BERGAN RAQAMNI YOZING
+ADMIN_ID =  5753001435 # <--- BU YERGA @userinfobot BERGAN RAQAMNI YOZING
 bot = telebot.TeleBot(TOKEN)
 
 # --- RENDER 24/7 ISHLASHI UCHUN SERVER ---
