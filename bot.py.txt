@@ -6,7 +6,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread
 
 # 1. TOKENINGIZ
-TOKEN = "8140148084:AAHiq2FU_bAR1cwYXVLvv-g201XGJo8t_8w"
+TOKEN = "8790468450:AAEaceqPyeomhS_BHP0BLg-Nica4ekr8K4o"
 bot = telebot.TeleBot(TOKEN)
 
 # --- SODDA SERVER (RENDER UCHUN) ---
